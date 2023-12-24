@@ -42,9 +42,9 @@ class Pusher
             try {
                 // webman下可以直接使用config获取配置，非webman环境需要手动写入相应配置
                 static::$api = new Api(
-                    str_replace('0.0.0.0', '127.0.0.1', config('plugin.webman.push.app.api')),
-                    config('plugin.webman.push.app.app_key'),
-                    config('plugin.webman.push.app.app_secret')
+                    str_replace('0.0.0.0', '127.0.0.1', config('plugin.ledc.push.app.api')),
+                    config('plugin.ledc.push.app.app_key'),
+                    config('plugin.ledc.push.app.app_secret')
                 );
             } catch (PushException $exception) {
                 throw new RuntimeException($exception->getMessage());
