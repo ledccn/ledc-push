@@ -2,6 +2,7 @@
   "name": "ledc/push",
   "type": "library",
   "license": "MIT",
+  "description": "webman插件ledc/push",
   "require": {
     "php": ">=8.1",
     "workerman/webman-framework": "^1.5.0",
