@@ -2,6 +2,8 @@
 
 namespace Ledc\Push;
 
+use CurlHandle;
+
 /**
  * Pusher推送器HTTP库
  * - Modified from https://github.com/pusher/pusher-http-php
@@ -11,7 +13,7 @@ class Api
     /**
      * @var array
      */
-    protected $_settings = [
+    protected array $_settings = [
         'timeout' => 2,
     ];
 
@@ -43,7 +45,7 @@ class Api
      * @return bool
      * @throws PushException
      */
-    public function trigger($channels, string $event, $data, string $socket_id = null): bool
+    public function trigger(array|string $channels, string $event, mixed $data, string $socket_id = null): bool
     {
         if (is_string($channels)) {
             $channels = array($channels);
@@ -74,10 +76,10 @@ class Api
      * 获取频道信息
      * @param string $channel
      * @param array $params
-     * @return false|mixed
+     * @return false|object|array
      * @throws PushException
      */
-    public function getChannelInfo(string $channel, array $params = [])
+    public function getChannelInfo(string $channel, array $params = []): object|bool|array
     {
         $this->validateChannel($channel);
         $response = $this->get('/channels/' . $channel, $params);
@@ -100,10 +102,11 @@ class Api
     }
 
     /**
+     * 验证散列算法
      * @return void
      * @throws PushException
      */
-    private function checkCompatibility()
+    private function checkCompatibility(): void
     {
         if (!in_array('sha256', hash_algos())) {
             throw new PushException('SHA256 appears to be unsupported - make sure you have support for it, or upgrade your version of PHP.');
@@ -111,11 +114,12 @@ class Api
     }
 
     /**
+     * 验证频道名称
      * @param string $channel
      * @return void
      * @throws PushException
      */
-    private function validateChannel(string $channel)
+    private function validateChannel(string $channel): void
     {
         if (!preg_match('/\A[-a-zA-Z0-9_=@,.;]+\z/', $channel)) {
             throw new PushException('Invalid channel name ' . $channel);
@@ -123,11 +127,12 @@ class Api
     }
 
     /**
+     * 验证socket_id
      * @param string|null $socket_id
      * @return void
      * @throws PushException
      */
-    private function validateSocketId(?string $socket_id)
+    private function validateSocketId(?string $socket_id): void
     {
         if ($socket_id !== null && !preg_match('/\A\d+\.\d+\z/', $socket_id)) {
             throw new PushException('Invalid socket ID ' . $socket_id);
@@ -135,14 +140,15 @@ class Api
     }
 
     /**
+     * 创建curl句柄
      * @param string $domain
      * @param string $s_url
      * @param string $request_method
      * @param array $query_params
-     * @return resource
+     * @return CurlHandle
      * @throws PushException
      */
-    private function createCurl(string $domain, string $s_url, string $request_method = 'GET', array $query_params = array())
+    private function createCurl(string $domain, string $s_url, string $request_method = 'GET', array $query_params = array()): CurlHandle
     {
         static $ch = null;
         $signed_query = self::buildAuthQueryString(
@@ -182,10 +188,11 @@ class Api
     }
 
     /**
-     * @param $ch
+     * 实际发起请求
+     * @param CurlHandle $ch
      * @return array
      */
-    private function execCurl($ch): array
+    private function execCurl(CurlHandle $ch): array
     {
         $response = [];
         $response['body'] = curl_exec($ch);
@@ -201,8 +208,13 @@ class Api
      * @param array $query_params
      * @return mixed|string
      */
-    public static function buildAuthQueryString(string $auth_key, string $auth_secret, string $request_method, string $request_path,
-                                                array $query_params = [])
+    public static function buildAuthQueryString(
+        string $auth_key,
+        string $auth_secret,
+        string $request_method,
+        string $request_path,
+        array  $query_params = []
+    ): mixed
     {
         $params = [];
         $params['auth_key'] = $auth_key;
@@ -227,7 +239,7 @@ class Api
      * @param $array
      * @return mixed|string
      */
-    public static function arrayImplode($glue, $separator, $array)
+    public static function arrayImplode($glue, $separator, $array): mixed
     {
         if (!is_array($array)) {
             return $array;
@@ -253,24 +265,22 @@ class Api
     public function get(string $path, array $params = array()): array
     {
         $ch = $this->createCurl($this->_settings['api_address'], $this->_settings['base_path'] . $path, 'GET', $params);
-
         $response = $this->execCurl($ch);
-
         if ($response['status'] === 200) {
             $response['result'] = json_decode($response['body'], true);
         }
-
         return $response;
     }
 
     /**
-     * @param string $channel
-     * @param string $socket_id
-     * @param string|null $custom_data
+     * 签名频道名称、socket_id、自定义数据
+     * @param string $channel 频道名称
+     * @param string $socket_id 长连接ID
+     * @param string|null $custom_data [可选]自定义数据
      * @return false|string
      * @throws PushException
      */
-    public function socketAuth(string $channel, string $socket_id, string $custom_data = null)
+    public function socketAuth(string $channel, string $socket_id, string $custom_data = null): bool|string
     {
         $this->validateChannel($channel);
         $this->validateSocketId($socket_id);
@@ -290,14 +300,15 @@ class Api
     }
 
     /**
+     * 签名频道名称、socket_id、自定义数据
      * @param string $channel
      * @param string $socket_id
-     * @param $user_id
-     * @param $user_info
+     * @param int|string $user_id
+     * @param mixed|null $user_info
      * @return false|string
      * @throws PushException
      */
-    public function presenceAuth(string $channel, string $socket_id, $user_id, $user_info = null)
+    public function presenceAuth(string $channel, string $socket_id, int|string $user_id, mixed $user_info = null): bool|string
     {
         $user_data = ['user_id' => $user_id];
         if ($user_info) {

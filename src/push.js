@@ -1,4 +1,3 @@
-
 function Push(options) {
     this.doNotConnect = 0;
     options = options || {};

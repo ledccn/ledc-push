@@ -1,6 +1,20 @@
 # push
-webman push plugin   
-https://www.workerman.net/plugin/2
+webman push plugin  https://www.workerman.net/plugin/2
+
+原版地址：https://github.com/webman-php/push
+
+## 安装
+```shell
+composer require ledc/push
+```
+
+
+## 简介
+
+一个免费的推送服务端插件，客户端基于订阅模式，兼容 [pusher](https://pusher.com/)，拥有众多客户端如JS、安卓(java)、IOS(swift)、IOS(Obj-C)、uniapp、.NET、 Unity、Flutter、AngularJS等。后端推送SDK支持PHP、Node、Ruby、Asp、Java、Python、Go、Swift等。客户端自带心跳和断线自动重连，使用起来非常简单稳定。适用于消息推送、聊天等诸多即时通讯场景。
+
+插件中自带一个网页js客户端push.js以及uniapp客户端`uniapp-push.js`，其它语言客户端在 https://pusher.com/docs/channels/channels_libraries/libraries/ 下载
+
 
 ## 进度条
 
