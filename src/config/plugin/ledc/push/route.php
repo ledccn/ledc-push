@@ -18,8 +18,8 @@ Route::get('/plugin/ledc/push/push.js', function (Request $request) {
  */
 Route::get('/plugin/ledc/push/uniqid_channel', function (Request $request) {
     $channel_name = (new UniqidChannel())->generate();
-    Redis::setEx(UniqidChannel::SESSION_KEY . ':' . $channel_name, 86400, $channel_name);
-    return json(['channel_name' => (new UniqidChannel())->generate()])->header(UniqidChannel::SESSION_KEY, $channel_name);
+    Redis::setEx(UniqidChannel::SESSION_KEY . ':' . $channel_name, 300, $channel_name);
+    return json(['channel_name' => $channel_name])->header(UniqidChannel::SESSION_KEY, $channel_name);
 });
 
 /**

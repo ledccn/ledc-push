@@ -2,8 +2,6 @@
 
 namespace Ledc\Push;
 
-use support\Redis;
-
 /**
  * 唯一值的私有频道
  */
@@ -67,7 +65,6 @@ class UniqidChannel
     {
         $this->channel_name = self::PREFIX . uniqid(mt_rand(100000, 999999));
         request()->session()->set(static::SESSION_KEY, $this->channel_name);
-        //Redis::setEx(UniqidChannel::SESSION_KEY . ':' . $this->channel_name, 86400, $this->channel_name);
         return $this->channel_name;
     }
 }
