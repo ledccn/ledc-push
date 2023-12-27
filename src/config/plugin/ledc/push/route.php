@@ -17,8 +17,9 @@ Route::get('/plugin/ledc/push/push.js', function (Request $request) {
  * 生成唯一的私有频道名称
  */
 Route::get('/plugin/ledc/push/uniqid_channel', function (Request $request) {
-    $channel_name = (new UniqidChannel())->generate();
-    Redis::setEx(UniqidChannel::SESSION_KEY . ':' . $channel_name, 300, $channel_name);
+    $uniqidChannel = new UniqidChannel();
+    $channel_name = $uniqidChannel->generate();
+    $uniqidChannel->saveToRedis();
     return json(['channel_name' => $channel_name])->header(UniqidChannel::SESSION_KEY, $channel_name);
 });
 

@@ -2,6 +2,8 @@
 
 namespace Ledc\Push;
 
+use support\Redis;
+
 /**
  * 唯一值的私有频道
  */
@@ -54,7 +56,7 @@ class UniqidChannel
         if ($session->has(static::SESSION_KEY)) {
             return $session->get(static::SESSION_KEY) === $this->channel_name;
         }
-        return false;
+        return (bool)Redis::exists($this->getCacheKey());
     }
 
     /**
@@ -66,5 +68,24 @@ class UniqidChannel
         $this->channel_name = self::PREFIX . uniqid(mt_rand(100000, 999999));
         request()->session()->set(static::SESSION_KEY, $this->channel_name);
         return $this->channel_name;
+    }
+
+    /**
+     * redis缓存key
+     * @return string
+     */
+    protected function getCacheKey(): string
+    {
+        return static::SESSION_KEY . ':' . $this->channel_name;
+    }
+
+    /**
+     * 保存到redis
+     * @param int $ttl
+     * @return void
+     */
+    public function saveToRedis(int $ttl = 120): void
+    {
+        Redis::setEx($this->getCacheKey(), max(120, $ttl), $this->channel_name);
     }
 }

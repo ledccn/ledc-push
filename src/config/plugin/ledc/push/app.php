@@ -1,6 +1,5 @@
 <?php
 
-use Ledc\Push\Pipelines\PrivateUniqidPipeline;
 use Ledc\Push\Pipelines\UniqidPipeline;
 use Ledc\Push\Pipelines\WebmanAdmin;
 
@@ -14,7 +13,6 @@ return [
     'auth'         => '/plugin/ledc/push/auth',
     'pipeline' => [
         [WebmanAdmin::class, 'process'],
-        [PrivateUniqidPipeline::class, 'process'], // PrivateUniqidPipeline、UniqidPipeline二选一
-        [UniqidPipeline::class, 'process'], // PrivateUniqidPipeline、UniqidPipeline二选一
+        [UniqidPipeline::class, 'process'],
     ],
 ];
