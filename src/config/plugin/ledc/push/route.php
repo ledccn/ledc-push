@@ -1,8 +1,8 @@
 <?php
 
 use Ledc\Push\Pusher;
+use Ledc\Push\PusherOnline;
 use Ledc\Push\UniqidChannel;
-use support\Redis;
 use support\Request;
 use Webman\Route;
 
@@ -65,8 +65,10 @@ Route::post(parse_url(config('plugin.ledc.push.app.channel_hook'), PHP_URL_PATH)
     foreach ($payload['events'] as $event) {
         if ($event['name'] === 'channel_added') {
             $channels_online[] = $event['channel'];
+            PusherOnline::sAdd($event['channel']);
         } else if ($event['name'] === 'channel_removed') {
             $channels_offline[] = $event['channel'];
+            PusherOnline::sRem($event['channel']);
         }
     }
 
