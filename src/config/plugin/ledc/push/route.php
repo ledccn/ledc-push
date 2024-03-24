@@ -22,8 +22,8 @@ Route::get('/plugin/ledc/push/config', function (Request $request) {
     $host = $request->host();
     $data = [
         'url' => $wss_protocol . $host,
-        'app_key' => config('plugin.webman.push.app.app_key'),
-        'auth' => $protocol . '://' . $host . config('plugin.webman.push.app.auth'),
+        'app_key' => config('plugin.ledc.push.app.app_key'),
+        'auth' => $protocol . '://' . $host . config('plugin.ledc.push.app.auth'),
     ];
     return json(['code' => 0, 'data' => $data, 'msg' => 'ok']);
 });
