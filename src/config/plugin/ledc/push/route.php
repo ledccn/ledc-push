@@ -14,6 +14,21 @@ Route::get('/plugin/ledc/push/push.js', function (Request $request) {
 });
 
 /**
+ * 获取配置:webman/push
+ */
+Route::get('/plugin/ledc/push/config', function (Request $request) {
+    $protocol = $request->header('x-forwarded-proto', 'https');
+    $wss_protocol = 'http' === $protocol ? 'ws://' : 'wss://';
+    $host = $request->host();
+    $data = [
+        'url' => $wss_protocol . $host,
+        'app_key' => config('plugin.webman.push.app.app_key'),
+        'auth' => $protocol . '://' . $host . config('plugin.webman.push.app.auth'),
+    ];
+    return json(['code' => 0, 'data' => $data, 'msg' => 'ok']);
+});
+
+/**
  * 生成唯一的私有频道名称
  */
 Route::get('/plugin/ledc/push/uniqid_channel', function (Request $request) {
