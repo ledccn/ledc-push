@@ -14,7 +14,7 @@ Route::get('/plugin/ledc/push/push.js', function (Request $request) {
 });
 
 /**
- * 获取配置:webman/push
+ * 获取配置:ledc/push
  */
 Route::get('/plugin/ledc/push/config', function (Request $request) {
     $protocol = $request->header('x-forwarded-proto', 'https');
