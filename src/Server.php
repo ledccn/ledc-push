@@ -275,7 +275,7 @@ class Server
 
                         // {"event":"pusher:error","data":{"code":null,"message":"Received invalid JSON"}}
                         if ($client_auth !== $auth) {
-                            $connection->send($this->error(null, 'Received invalid Auth ' . $auth));
+                            $connection->send($this->error(null, 'Received invalid Auth ' . $client_auth));
                             return;
                         }
                         $user_data = json_decode($data['data']['channel_data'], true);
@@ -292,7 +292,7 @@ class Server
                         $auth = $connection->appKey . ':' . hash_hmac('sha256', $connection->socketID . ':' . $channel, $this->appInfo[$connection->appKey]['app_secret'], false);
                         // {"event":"pusher:error","data":{"code":null,"message":"Received invalid Auth"}}
                         if ($client_auth !== $auth) {
-                            $connection->send($this->error(null, 'Received invalid Auth ' . $auth));
+                            $connection->send($this->error(null, 'Received invalid Auth ' . $client_auth));
                             return;
                         }
                         $this->subscribePrivateChannel($connection, $channel);
