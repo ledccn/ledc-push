@@ -2,6 +2,7 @@
 
 namespace Ledc\Push;
 
+use Random\RandomException;
 use support\Redis;
 
 /**
@@ -62,10 +63,11 @@ class UniqidChannel
     /**
      * 生成并重置channel_name
      * @return string
+     * @throws RandomException
      */
     public function generate(): string
     {
-        $this->channel_name = self::PREFIX . uniqid(mt_rand(100000, 999999));
+        $this->channel_name = self::PREFIX . bin2hex(pack('d', microtime(true)) . random_bytes(12));
         request()->session()->set(static::SESSION_KEY, $this->channel_name);
         return $this->channel_name;
     }
