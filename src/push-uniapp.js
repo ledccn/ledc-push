@@ -1,8 +1,7 @@
-
 function Push(options) {
     this.doNotConnect = 0;
     options = options || {};
-    options.heartbeat  = options.heartbeat || 25000;
+    options.heartbeat = options.heartbeat || 25000;
     options.pingTimeout = options.pingTimeout || 10000;
     this.config = options;
     this.uid = 0;
@@ -13,7 +12,7 @@ function Push(options) {
     this.createConnection();
 }
 
-Push.prototype.checkoutPing = function() {
+Push.prototype.checkoutPing = function () {
     var _this = this;
     _this.checkoutPingTimer && clearTimeout(_this.checkoutPingTimer);
     _this.checkoutPingTimer = setTimeout(function () {
@@ -46,20 +45,22 @@ Push.prototype.createConnection = function () {
     }
     var _this = this;
     var url = this.config.url;
-    function updateSubscribed () {
+
+    function updateSubscribed() {
         for (var i in _this.channels) {
             _this.channels[i].subscribed = false;
         }
     }
+
     this.connection = new Connection({
         url: url,
         app_key: this.config.app_key,
         onOpen: function () {
-            _this.connection.state  = 'connecting';
+            _this.connection.state = 'connecting';
             _this.checkoutPing();
         },
-        onMessage: function(params) {
-            if(_this.pingTimeoutTimer) {
+        onMessage: function (params) {
+            if (_this.pingTimeoutTimer) {
                 clearTimeout(_this.pingTimeoutTimer);
                 _this.pingTimeoutTimer = 0;
             }
@@ -89,7 +90,7 @@ Push.prototype.createConnection = function () {
                 _this.subscribeAll();
             }
             if (event.indexOf('pusher_internal') !== -1) {
-                console.log("Event '"+event+"' not implement");
+                console.log("Event '" + event + "' not implement");
                 return;
             }
             channel = _this.channels[channel_name];
@@ -124,7 +125,7 @@ Push.prototype.unsubscribe = function (channel_name) {
     if (this.channels[channel_name]) {
         delete this.channels[channel_name];
         if (this.connection.state === 'connected') {
-            this.connection.send(JSON.stringify({event:"pusher:unsubscribe", data:{channel:channel_name}}));
+            this.connection.send(JSON.stringify({event: "pusher:unsubscribe", data: {channel: channel_name}}));
         }
     }
 };
@@ -153,19 +154,17 @@ Push.prototype.subscribe = function (channel_name) {
 };
 Push.instances = [];
 
-function createChannel(channel_name, push)
-{
+function createChannel(channel_name, push) {
     var channel = new Channel(push.connection, channel_name);
     push.channels[channel_name] = channel;
     channel.subscribeCb = function () {
-        push.connection.send(JSON.stringify({event:"pusher:subscribe", data:{channel:channel_name}}));
+        push.connection.send(JSON.stringify({event: "pusher:subscribe", data: {channel: channel_name}}));
     }
     channel.processSubscribe();
     return channel;
 }
 
-function createPrivateChannel(channel_name, push)
-{
+function createPrivateChannel(channel_name, push) {
     var channel = new Channel(push.connection, channel_name);
     push.channels[channel_name] = channel;
     channel.subscribeCb = function () {
@@ -176,7 +175,7 @@ function createPrivateChannel(channel_name, push)
             success: function (data) {
                 data = JSON.parse(data);
                 data.channel = channel_name;
-                push.connection.send(JSON.stringify({event:"pusher:subscribe", data:data}));
+                push.connection.send(JSON.stringify({event: "pusher:subscribe", data: data}));
             },
             error: function (e) {
                 throw Error(e);
@@ -187,13 +186,12 @@ function createPrivateChannel(channel_name, push)
     return channel;
 }
 
-function createPresenceChannel(channel_name, push)
-{
+function createPresenceChannel(channel_name, push) {
     return createPrivateChannel(channel_name, push);
 }
 
 uni.onNetworkStatusChange(function (res) {
-    if(res.isConnected) {
+    if (res.isConnected) {
         for (var i in Push.instances) {
             con = Push.instances[i].connection;
             con.reconnectInterval = 1;
@@ -220,11 +218,11 @@ function Connection(options) {
     this.connect();
 }
 
-Connection.prototype.updateNetworkState = function(state){
+Connection.prototype.updateNetworkState = function (state) {
     var old_state = this.state;
     this.state = state;
     if (old_state !== state) {
-        this.emit('state_change', { previous: old_state, current: state });
+        this.emit('state_change', {previous: old_state, current: state});
     }
 };
 
@@ -246,7 +244,7 @@ Connection.prototype.connect = function () {
     this.updateNetworkState('connecting');
 
     var _this = this;
-    var cb = function(){
+    var cb = function () {
         uni.onSocketOpen(function (res) {
             _this.reconnectInterval = 1;
             if (_this.doNotConnect) {
@@ -284,14 +282,14 @@ Connection.prototype.connect = function () {
         });
     };
     uni.connectSocket({
-        url: options.url+'/app/'+options.app_key,
+        url: options.url + '/app/' + options.app_key,
         fail: function (res) {
             console.log('uni.connectSocket fail');
             console.log(res);
             _this.updateNetworkState('disconnected');
             _this.waitReconnect();
         },
-        success: function() {
+        success: function () {
 
         }
     });
@@ -315,7 +313,7 @@ Connection.prototype.waitReconnect = function () {
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
         }
-        this.reconnectTimer = setTimeout(function(){
+        this.reconnectTimer = setTimeout(function () {
             _this.connect();
         }, this.reconnectInterval);
         if (this.reconnectInterval < 1000) {
@@ -325,13 +323,19 @@ Connection.prototype.waitReconnect = function () {
             this.reconnectInterval = this.reconnectInterval * 2;
         }
         // 有网络的状态下，重连间隔最大2秒
-        if (this.reconnectInterval > 2000 && navigator.onLine) {
-            _this.reconnectInterval = 2000;
+        if (this.reconnectInterval > 2000) {
+            uni.getNetworkType({
+                success: function (res) {
+                    if (res.networkType != 'none') {
+                        _this.reconnectInterval = 1000;
+                    }
+                }
+            });
         }
     }
 }
 
-Connection.prototype.send = function(data) {
+Connection.prototype.send = function (data) {
     if (this.state !== 'connected') {
         console.trace('networkState is "' + this.state + '", can not send ' + data);
         return;
@@ -341,14 +345,20 @@ Connection.prototype.send = function(data) {
     });
 }
 
-Connection.prototype.close = function(){
+Connection.prototype.close = function () {
     this.updateNetworkState('disconnected');
     uni.closeSocket();
 }
 
 var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) {d[p] = b[p];}
-    function __() { this.constructor = d; }
+    for (var p in b) if (b.hasOwnProperty(p)) {
+        d[p] = b[p];
+    }
+
+    function __() {
+        this.constructor = d;
+    }
+
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 
@@ -389,7 +399,7 @@ Channel.prototype.trigger = function (event, data) {
     }
     var _this = this;
     this.queue.push(function () {
-        _this.connection.send(JSON.stringify({ event: event, data: data, channel: _this.channelName }));
+        _this.connection.send(JSON.stringify({event: event, data: data, channel: _this.channelName}));
     });
     this.processQueue();
 };
@@ -397,6 +407,7 @@ Channel.prototype.trigger = function (event, data) {
 ////////////////
 var Collections = (function () {
     var exports = {};
+
     function extend(target) {
         var sources = [];
         for (var _i = 1; _i < arguments.length; _i++) {
@@ -408,8 +419,7 @@ var Collections = (function () {
                 if (extensions[property] && extensions[property].constructor &&
                     extensions[property].constructor === Object) {
                     target[property] = extend(target[property] || {}, extensions[property]);
-                }
-                else {
+                } else {
                     target[property] = extensions[property];
                 }
             }
@@ -418,13 +428,13 @@ var Collections = (function () {
     }
 
     exports.extend = extend;
+
     function stringify() {
         var m = ["Push"];
         for (var i = 0; i < arguments.length; i++) {
             if (typeof arguments[i] === "string") {
                 m.push(arguments[i]);
-            }
-            else {
+            } else {
                 m.push(safeJSONStringify(arguments[i]));
             }
         }
@@ -432,6 +442,7 @@ var Collections = (function () {
     }
 
     exports.stringify = stringify;
+
     function arrayIndexOf(array, item) {
         var nativeIndexOf = Array.prototype.indexOf;
         if (array === null) {
@@ -449,6 +460,7 @@ var Collections = (function () {
     }
 
     exports.arrayIndexOf = arrayIndexOf;
+
     function objectApply(object, f) {
         for (var key in object) {
             if (Object.prototype.hasOwnProperty.call(object, key)) {
@@ -458,6 +470,7 @@ var Collections = (function () {
     }
 
     exports.objectApply = objectApply;
+
     function keys(object) {
         var keys = [];
         objectApply(object, function (_, key) {
@@ -467,6 +480,7 @@ var Collections = (function () {
     }
 
     exports.keys = keys;
+
     function values(object) {
         var values = [];
         objectApply(object, function (value) {
@@ -476,6 +490,7 @@ var Collections = (function () {
     }
 
     exports.values = values;
+
     function apply(array, f, context) {
         for (var i = 0; i < array.length; i++) {
             f.call(context || (window), array[i], i, array);
@@ -483,6 +498,7 @@ var Collections = (function () {
     }
 
     exports.apply = apply;
+
     function map(array, f) {
         var result = [];
         for (var i = 0; i < array.length; i++) {
@@ -492,6 +508,7 @@ var Collections = (function () {
     }
 
     exports.map = map;
+
     function mapObject(object, f) {
         var result = {};
         objectApply(object, function (value, key) {
@@ -501,6 +518,7 @@ var Collections = (function () {
     }
 
     exports.mapObject = mapObject;
+
     function filter(array, test) {
         test = test || function (value) {
             return !!value;
@@ -515,6 +533,7 @@ var Collections = (function () {
     }
 
     exports.filter = filter;
+
     function filterObject(object, test) {
         var result = {};
         objectApply(object, function (value, key) {
@@ -526,6 +545,7 @@ var Collections = (function () {
     }
 
     exports.filterObject = filterObject;
+
     function flatten(object) {
         var result = [];
         objectApply(object, function (value, key) {
@@ -535,6 +555,7 @@ var Collections = (function () {
     }
 
     exports.flatten = flatten;
+
     function any(array, test) {
         for (var i = 0; i < array.length; i++) {
             if (test(array[i], i, array)) {
@@ -545,6 +566,7 @@ var Collections = (function () {
     }
 
     exports.any = any;
+
     function all(array, test) {
         for (var i = 0; i < array.length; i++) {
             if (!test(array[i], i, array)) {
@@ -555,6 +577,7 @@ var Collections = (function () {
     }
 
     exports.all = all;
+
     function encodeParamsObject(data) {
         return mapObject(data, function (value) {
             if (typeof value === "object") {
@@ -565,6 +588,7 @@ var Collections = (function () {
     }
 
     exports.encodeParamsObject = encodeParamsObject;
+
     function buildQueryString(data) {
         var params = filterObject(data, function (value) {
             return value !== undefined;
@@ -573,6 +597,7 @@ var Collections = (function () {
     }
 
     exports.buildQueryString = buildQueryString;
+
     function decycleObject(object) {
         var objects = [], paths = [];
         return (function derez(value, path) {
@@ -594,8 +619,7 @@ var Collections = (function () {
                         for (i = 0; i < value.length; i += 1) {
                             nu[i] = derez(value[i], path + '[' + i + ']');
                         }
-                    }
-                    else {
+                    } else {
                         nu = {};
                         for (name in value) {
                             if (Object.prototype.hasOwnProperty.call(value, name)) {
@@ -613,11 +637,11 @@ var Collections = (function () {
     }
 
     exports.decycleObject = decycleObject;
+
     function safeJSONStringify(source) {
         try {
             return JSON.stringify(source);
-        }
-        catch (e) {
+        } catch (e) {
             return JSON.stringify(decycleObject(source));
         }
     }
@@ -632,6 +656,7 @@ var Dispatcher = (function () {
         this.global_callbacks = [];
         this.failThrough = failThrough;
     }
+
     Dispatcher.prototype.on = function (eventName, callback, context) {
         this.callbacks.add(eventName, callback, context);
         return this;
@@ -654,8 +679,7 @@ var Dispatcher = (function () {
             for (i = 0; i < callbacks.length; i++) {
                 callbacks[i].fn.call(callbacks[i].context || (window), data);
             }
-        }
-        else if (this.failThrough) {
+        } else if (this.failThrough) {
             this.failThrough(eventName, data);
         }
         return this;
@@ -667,6 +691,7 @@ var CallbackRegistry = (function () {
     function CallbackRegistry() {
         this._callbacks = {};
     }
+
     CallbackRegistry.prototype.get = function (name) {
         return this._callbacks[prefix(name)];
     };
@@ -686,8 +711,7 @@ var CallbackRegistry = (function () {
         var names = name ? [prefix(name)] : Collections.keys(this._callbacks);
         if (callback || context) {
             this.removeCallback(names, callback, context);
-        }
-        else {
+        } else {
             this.removeAllCallbacks(names);
         }
     };
@@ -709,48 +733,49 @@ var CallbackRegistry = (function () {
     };
     return CallbackRegistry;
 }());
+
 function prefix(name) {
     return "_" + name;
 }
 
-function __ajax(options){
-    options=options||{};
-    options.type=(options.type||'GET').toUpperCase();
-    options.dataType=options.dataType||'json';
-    params=formatParams(options.data);
+function __ajax(options) {
+    options = options || {};
+    options.type = (options.type || 'GET').toUpperCase();
+    options.dataType = options.dataType || 'json';
+    var params = formatParams(options.data);
 
     var xhr;
-    if(window.XMLHttpRequest){
-        xhr=new XMLHttpRequest();
-    }else{
-        xhr=ActiveXObject('Microsoft.XMLHTTP');
+    if (window.XMLHttpRequest) {
+        xhr = new XMLHttpRequest();
+    } else {
+        xhr = ActiveXObject('Microsoft.XMLHTTP');
     }
 
-    xhr.onreadystatechange=function(){
-        if(xhr.readyState === 4){
-            var status=xhr.status;
-            if(status>=200 && status<300){
-                options.success&&options.success(xhr.responseText,xhr.responseXML);
-            }else{
-                options.error&&options.error(status);
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+            var status = xhr.status;
+            if (status >= 200 && status < 300) {
+                options.success && options.success(xhr.responseText, xhr.responseXML);
+            } else {
+                options.error && options.error(status);
             }
         }
     }
 
-    if(options.type==='GET'){
-        xhr.open('GET',options.url+'?'+params,true);
+    if (options.type === 'GET') {
+        xhr.open('GET', options.url + '?' + params, true);
         xhr.send(null);
-    }else if(options.type==='POST'){
-        xhr.open('POST',options.url,true);
+    } else if (options.type === 'POST') {
+        xhr.open('POST', options.url, true);
         xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         xhr.send(params);
     }
 }
 
-function formatParams(data){
-    var arr=[];
-    for(var name in data){
-        arr.push(encodeURIComponent(name)+'='+encodeURIComponent(data[name]));
+function formatParams(data) {
+    var arr = [];
+    for (var name in data) {
+        arr.push(encodeURIComponent(name) + '=' + encodeURIComponent(data[name]));
     }
     return arr.join('&');
 }
