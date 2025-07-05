@@ -5,10 +5,10 @@
   "description": "webman插件ledc/push",
   "require": {
     "php": ">=8.2",
-    "workerman/webman-framework": "^1.5.0",
+    "workerman/webman-framework": ">=1.6",
     "ext-json": "*",
     "ext-curl": "*",
-    "ledc/pipeline": ">=1.0"
+    "ledc/pipeline": ">=8.0"
   },
   "autoload": {
     "psr-4": {
