@@ -45,15 +45,15 @@ class Api
      * @return bool
      * @throws PushException
      */
-    public function trigger(array|string $channels, string $event, mixed $data, string $socket_id = null): bool
+    public function trigger(array|string $channels, string $event, mixed $data, ?string $socket_id = null): bool
     {
         if (is_string($channels)) {
-            $channels = array($channels);
+            $channels = [$channels];
         }
-        $query_params = array();
+        $query_params = [];
         $s_url = $this->_settings['base_path'] . '/events';
-        $data_encoded = json_encode($data);
-        $post_params = array();
+        $data_encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $post_params = [];
         $post_params['name'] = $event;
         $post_params['data'] = $data_encoded;
         $post_params['channels'] = $channels;
@@ -65,25 +65,20 @@ class Api
         $ch = $this->createCurl($this->_settings['api_address'], $s_url, 'POST', $query_params);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $post_value);
         $response = $this->execCurl($ch);
-        if (200 === $response['status']) {
-            return true;
-        } else {
-            return false;
-        }
+        return 200 === $response['status'];
     }
 
     /**
-     * 获取频道信息
      * @param string $channel
      * @param array $params
-     * @return false|object|array
+     * @return false|mixed
      * @throws PushException
      */
-    public function getChannelInfo(string $channel, array $params = []): object|bool|array
+    public function getChannelInfo(string $channel, array $params = []): mixed
     {
         $this->validateChannel($channel);
         $response = $this->get('/channels/' . $channel, $params);
-        if (200 === $response['status']) {
+        if ($response['status'] === 200) {
             $response = json_decode($response['body']);
         } else {
             $response = false;
@@ -148,7 +143,7 @@ class Api
      * @return CurlHandle
      * @throws PushException
      */
-    private function createCurl(string $domain, string $s_url, string $request_method = 'GET', array $query_params = array()): CurlHandle
+    private function createCurl(string $domain, string $s_url, string $request_method = 'GET', array $query_params = []): CurlHandle
     {
         static $ch = null;
         $signed_query = self::buildAuthQueryString(
@@ -234,12 +229,12 @@ class Api
     }
 
     /**
-     * @param $glue
-     * @param $separator
-     * @param $array
+     * @param string $glue
+     * @param string $separator
+     * @param mixed $array
      * @return mixed|string
      */
-    public static function arrayImplode($glue, $separator, $array): mixed
+    public static function arrayImplode(string $glue, string $separator, mixed $array): mixed
     {
         if (!is_array($array)) {
             return $array;
@@ -277,10 +272,10 @@ class Api
      * @param string $channel 频道名称
      * @param string $socket_id 长连接ID
      * @param string|null $custom_data [可选]自定义数据
-     * @return false|string
+     * @return bool|string
      * @throws PushException
      */
-    public function socketAuth(string $channel, string $socket_id, string $custom_data = null): bool|string
+    public function socketAuth(string $channel, string $socket_id, ?string $custom_data = null): bool|string
     {
         $this->validateChannel($channel);
         $this->validateSocketId($socket_id);
@@ -304,8 +299,8 @@ class Api
      * @param string $channel
      * @param string $socket_id
      * @param int|string $user_id
-     * @param mixed|null $user_info
-     * @return false|string
+     * @param mixed $user_info
+     * @return bool|string
      * @throws PushException
      */
     public function presenceAuth(string $channel, string $socket_id, int|string $user_id, mixed $user_info = null): bool|string

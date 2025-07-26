@@ -160,7 +160,6 @@ class Server
      * @param TcpConnection $connection
      * @param $header
      * @return void
-     * @throws Throwable
      */
     public function onWebSocketConnect(TcpConnection $connection, $header): void
     {
@@ -237,7 +236,6 @@ class Server
      * @param TcpConnection $connection
      * @param string $data
      * @return void
-     * @throws Throwable
      */
     public function onMessage(TcpConnection $connection, string $data): void
     {
@@ -257,15 +255,18 @@ class Server
                 case 'pusher:ping':
                     $connection->send('{"event":"pusher:pong","data":"{}"}');
                     return;
-
                 // {"event":"pusher:subscribe","data":{"channel":"my-channel"}}
                 case 'pusher:subscribe':
+                    if (!isset($data['data']['channel'])) {
+                        $connection->send($this->error(null, 'Empty channel'));
+                        return;
+                    }
                     $channel = $data['data']['channel'];
                     // private- 和 presence- 开头的channel需要验证
                     $channel_type = $this->getChannelType($channel);
                     if ($channel_type === 'presence') {
                         // {"event":"pusher:subscribe","data":{"auth":"b054014693241bcd9c26:10e3b628cb78e8bc4d1f44d47c9294551b446ae6ec10ef113d3d7e84e99763e6","channel_data":"{\"user_id\":100,\"user_info\":{\"name\":\"123\"}}","channel":"presence-channel"}}
-                        $client_auth = $data['data']['auth'];
+                        $client_auth = $data['data']['auth'] ?? '';
 
                         if (!isset($data['data']['channel_data'])) {
                             $connection->send($this->error(null, 'Empty channel_data'));
@@ -275,7 +276,7 @@ class Server
 
                         // {"event":"pusher:error","data":{"code":null,"message":"Received invalid JSON"}}
                         if ($client_auth !== $auth) {
-                            $connection->send($this->error(null, 'Received invalid Auth ' . $client_auth));
+                            $connection->send($this->error(null, 'Received invalid Auth ' . $auth));
                             return;
                         }
                         $user_data = json_decode($data['data']['channel_data'], true);
@@ -286,13 +287,14 @@ class Server
 
                         $this->subscribePresence($connection, $channel, $user_data['user_id'], $user_data['user_info']);
                         return;
+
                     } elseif ($channel_type === 'private') {
                         // {"event":"pusher:subscribe","data":{"auth":"b054014693241bcd9c26:10e3b628cb78e8bc4d1f44d47c9294551b446ae6ec10ef113d3d7e84e99763e6","channel_data":"{\"user_id\":100,\"user_info\":{\"name\":\"123\"}}","channel":"presence-channel"}}
-                        $client_auth = $data['data']['auth'];
+                        $client_auth = $data['data']['auth'] ?? '';
                         $auth = $connection->appKey . ':' . hash_hmac('sha256', $connection->socketID . ':' . $channel, $this->appInfo[$connection->appKey]['app_secret'], false);
                         // {"event":"pusher:error","data":{"code":null,"message":"Received invalid Auth"}}
                         if ($client_auth !== $auth) {
-                            $connection->send($this->error(null, 'Received invalid Auth ' . $client_auth));
+                            $connection->send($this->error(null, 'Received invalid Auth ' . $auth));
                             return;
                         }
                         $this->subscribePrivateChannel($connection, $channel);
@@ -306,13 +308,16 @@ class Server
                             'event' => 'pusher_internal:subscription_succeeded',
                             'data' => '{}',
                             'channel' => $channel
-                        ), JSON_UNESCAPED_UNICODE
+                        ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
                     ));
                     return;
-
                 // {"event":"pusher:unsubscribe","data":{"channel":"my-channel"}}
                 case 'pusher:unsubscribe':
                     $app_key = $connection->appKey;
+                    if (!isset($data['data']['channel'])) {
+                        $connection->send($this->error(null, 'Empty channel'));
+                        return;
+                    }
                     $channel = $data['data']['channel'];
                     $channel_type = $this->getChannelType($channel);
                     switch ($channel_type) {
@@ -361,7 +366,7 @@ class Server
                     // @todo 检查是否设置了可前端发布事件
                     // {"event":"pusher:error","data":{"code":null,"message":"To send client events, you must enable this feature in the Settings page of your dashboard."}}
                     // 全局发布事件
-                    $this->publishToClients($connection->appKey, $channel, $event, json_encode($data['data'], JSON_UNESCAPED_UNICODE), $connection->socketID);
+                    $this->publishToClients($connection->appKey, $channel, $event, json_encode($data['data'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $connection->socketID);
             }
         } catch (Error|Exception|Throwable $throwable) {
             $connection->send($this->error($throwable->getCode(), $throwable->getMessage()));
@@ -393,7 +398,7 @@ class Server
      */
     protected function error($code, $message): string
     {
-        return json_encode(array('event' => 'pusher:error', 'data' => array('code' => $code, 'message' => $message)), JSON_UNESCAPED_UNICODE);
+        return json_encode(array('event' => 'pusher:error', 'data' => array('code' => $code, 'message' => $message)), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -471,15 +476,15 @@ class Server
             $this->publishToClients($app_key, $channel, 'pusher_internal:member_added', json_encode(array(
                 'user_id' => $uid,
                 'user_info' => $user_info
-            ), JSON_UNESCAPED_UNICODE), $connection->socketID);
+            ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), $connection->socketID);
         }
 
         // {"event":"pusher_internal:subscription_succeeded","data":"{\"presence\":{\"count\":2,\"ids\":[\"1488465780\",\"14884657802\"],\"hash\":{\"1488465780\":{\"name\":\"123\",\"sex\":\"1\"},\"14884657802\":{\"name\":\"123\",\"sex\":\"1\"}}}}","channel":"presence-channel"}
         $connection->send(json_encode(array(
             'event' => 'pusher_internal:subscription_succeeded',
-            'data' => json_encode($presence_data),
+            'data' => json_encode($presence_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'channel' => $channel
-        ), JSON_UNESCAPED_UNICODE
+        ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         ));
     }
 
@@ -521,9 +526,11 @@ class Server
     public function unsubscribePublicChannel($connection, $channel): void
     {
         $app_key = $connection->appKey;
-        $this->_globalData[$app_key][$channel]['subscription_count']--;
-        if ($this->_globalData[$app_key][$channel]['subscription_count'] <= 0) {
-            unset($this->_globalData[$app_key][$channel]);
+        if (isset($this->_globalData[$app_key][$channel])) {
+            $this->_globalData[$app_key][$channel]['subscription_count']--;
+            if ($this->_globalData[$app_key][$channel]['subscription_count'] <= 0) {
+                unset($this->_globalData[$app_key][$channel]);
+            }
         }
         unset($connection->channels[$channel], $this->_eventClients[$connection->appKey][$channel][$connection->socketID]);
     }
@@ -553,25 +560,27 @@ class Server
     {
         $app_key = $connection->appKey;
         $member_removed = false;
-        $this->_globalData[$app_key][$channel]['subscription_count']--;
-        if ($this->_globalData[$app_key][$channel]['subscription_count'] <= 0) {
-            unset($this->_globalData[$app_key][$channel]);
-            $member_removed = true;
-        } else {
-            if (!isset($this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'])) {
-                error_log("\$this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'] not exist\n");
-                return;
-            }
-            $this->_globalData[$app_key][$channel]['users'][$uid]['ref_count']--;
-            $ref_count = $this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'];
-            if ($ref_count <= 0) {
-                unset($this->_globalData[$app_key][$channel]['users'][$uid]);
+        if (isset($this->_globalData[$app_key][$channel])) {
+            $this->_globalData[$app_key][$channel]['subscription_count']--;
+            if ($this->_globalData[$app_key][$channel]['subscription_count'] <= 0) {
+                unset($this->_globalData[$app_key][$channel]);
                 $member_removed = true;
+            } else {
+                if (!isset($this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'])) {
+                    error_log("\$this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'] not exist\n");
+                    return;
+                }
+                $this->_globalData[$app_key][$channel]['users'][$uid]['ref_count']--;
+                $ref_count = $this->_globalData[$app_key][$channel]['users'][$uid]['ref_count'];
+                if ($ref_count <= 0) {
+                    unset($this->_globalData[$app_key][$channel]['users'][$uid]);
+                    $member_removed = true;
+                }
             }
-        }
-        if ($member_removed) {
-            // {"event":"pusher_internal:member_removed","data":"{\"user_id\":\"14884657801\"}","channel":"presence-channel"}
-            $this->publishToClients($app_key, $channel, 'pusher_internal:member_removed', json_encode(array('user_id' => $uid), JSON_UNESCAPED_UNICODE));
+            if ($member_removed) {
+                // {"event":"pusher_internal:member_removed","data":"{\"user_id\":\"14884657801\"}","channel":"presence-channel"}
+                $this->publishToClients($app_key, $channel, 'pusher_internal:member_removed', json_encode(array('user_id' => $uid), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            }
         }
         unset($connection->channels[$channel], $this->_eventClients[$connection->appKey][$channel][$connection->socketID]);
     }
@@ -595,7 +604,7 @@ class Server
             'event' => $event,
             'data' => $data,
             'channel' => $channel
-        ), JSON_UNESCAPED_UNICODE);
+        ), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         foreach ($this->_eventClients[$app_key][$channel] as $connection) {
             if ($connection->socketID === $socket_id) {
                 continue;
@@ -729,7 +738,7 @@ class Server
                             $channels[$channel]['subscription_count'] = $item['subscription_count'];
                         }
                     }
-                    return $connection->send(json_encode(['channels' => $channels], JSON_UNESCAPED_UNICODE));
+                    return $connection->send(json_encode(['channels' => $channels], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 }
                 $channel = $explode[3];
                 // users
@@ -744,7 +753,7 @@ class Server
                         $user_id_array[] = array('id' => $id);
                     }
 
-                    $connection->send(json_encode($user_id_array, JSON_UNESCAPED_UNICODE));
+                    $connection->send(json_encode($user_id_array, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                 }
                 $occupied = isset($this->_globalData[$app_key][$channel]);
                 $user_count = isset($this->_globalData[$app_key][$channel]['users']) ? count($this->_globalData[$app_key][$channel]['users']) : 0;
@@ -762,7 +771,7 @@ class Server
                             break;
                     }
                 }
-                return $connection->send(json_encode($channel_info, JSON_UNESCAPED_UNICODE));
+                return $connection->send(json_encode($channel_info, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             default:
                 return $connection->send(new Response(400, [], 'Bad Request'));
         }
@@ -770,7 +779,6 @@ class Server
 
     /**
      * @return void
-     * @throws Throwable
      */
     public function webHookCheck(): void
     {
@@ -827,7 +835,6 @@ class Server
     /**
      * @param $data
      * @return void
-     * @throws Throwable
      */
     protected function webHookSend($data): void
     {
@@ -873,7 +880,7 @@ class Server
                 $this->sendHttpRequest($this->appInfo[$app_key]['user_hook'],
                     $app_key,
                     $this->appInfo[$app_key]['app_secret'],
-                    json_encode($http_events_body, JSON_UNESCAPED_UNICODE));
+                    json_encode($http_events_body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             }
         }
 
@@ -907,7 +914,7 @@ class Server
                 $this->sendHttpRequest($this->appInfo[$app_key]['channel_hook'],
                     $app_key,
                     $this->appInfo[$app_key]['app_secret'],
-                    json_encode($http_events_body, JSON_UNESCAPED_UNICODE));
+                    json_encode($http_events_body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             }
         }
     }
@@ -919,7 +926,6 @@ class Server
      * @param $body
      * @param $redirect_count
      * @return false|void
-     * @throws Throwable
      */
     protected function sendHttpRequest($address, $app_key, $secret, $body, $redirect_count = 0)
     {
@@ -1007,7 +1013,7 @@ class Server
         if (!is_array($array)) {
             return $array;
         }
-        $string = array();
+        $string = [];
         foreach ($array as $key => $val) {
             if (is_array($val)) {
                 $val = implode(',', $val);

@@ -5,7 +5,7 @@
   "description": "webman插件ledc/push",
   "require": {
     "php": ">=8.2",
-    "workerman/webman-framework": ">=1.6",
+    "workerman/webman-framework": ">=1.6.14",
     "ext-json": "*",
     "ext-curl": "*",
     "ledc/pipeline": ">=8.0"

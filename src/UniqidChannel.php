@@ -2,6 +2,7 @@
 
 namespace Ledc\Push;
 
+use Exception;
 use Random\RandomException;
 use support\Redis;
 
@@ -50,10 +51,15 @@ class UniqidChannel
     /**
      * 判断频道名是否有效
      * @return bool
+     * @throws Exception
      */
     public function valid(): bool
     {
-        $session = request()->session();
+        $request = request();
+        if (null === $request) {
+            return false;
+        }
+        $session = $request->session();
         if ($session->has(static::SESSION_KEY)) {
             return $session->get(static::SESSION_KEY) === $this->channel_name;
         }
@@ -63,7 +69,7 @@ class UniqidChannel
     /**
      * 生成并重置channel_name
      * @return string
-     * @throws RandomException
+     * @throws RandomException|Exception
      */
     public function generate(): string
     {

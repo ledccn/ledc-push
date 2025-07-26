@@ -76,7 +76,8 @@ Push.prototype.createConnection = function () {
             if (event === 'pusher:error') {
                 throw Error(params.data.message);
             }
-            var data = JSON.parse(params.data), channel;
+            var data = JSON.parse(params.data),
+                channel;
             if (event === 'pusher_internal:subscription_succeeded') {
                 channel = _this.channels[channel_name];
                 channel.subscribed = true;
@@ -103,7 +104,7 @@ Push.prototype.createConnection = function () {
         },
         onError: function () {
             updateSubscribed();
-        }
+        },
     });
 };
 Push.prototype.disconnect = function () {
@@ -125,7 +126,12 @@ Push.prototype.unsubscribe = function (channel_name) {
     if (this.channels[channel_name]) {
         delete this.channels[channel_name];
         if (this.connection.state === 'connected') {
-            this.connection.send(JSON.stringify({event: "pusher:unsubscribe", data: {channel: channel_name}}));
+            this.connection.send(
+                JSON.stringify({
+                    event: 'pusher:unsubscribe',
+                    data: {channel: channel_name},
+                })
+            );
         }
     }
 };
@@ -158,8 +164,13 @@ function createChannel(channel_name, push) {
     var channel = new Channel(push.connection, channel_name);
     push.channels[channel_name] = channel;
     channel.subscribeCb = function () {
-        push.connection.send(JSON.stringify({event: "pusher:subscribe", data: {channel: channel_name}}));
-    }
+        push.connection.send(
+            JSON.stringify({
+                event: 'pusher:subscribe',
+                data: {channel: channel_name},
+            })
+        );
+    };
     channel.processSubscribe();
     return channel;
 }
@@ -168,18 +179,22 @@ function createPrivateChannel(channel_name, push) {
     var channel = new Channel(push.connection, channel_name);
     push.channels[channel_name] = channel;
     channel.subscribeCb = function () {
-        __ajax({
+        wx.request({
             url: push.config.auth,
-            type: 'POST',
-            data: {channel_name: channel_name, socket_id: push.connection.socket_id},
-            success: function (data) {
-                data = JSON.parse(data);
-                data.channel = channel_name;
-                push.connection.send(JSON.stringify({event: "pusher:subscribe", data: data}));
+            method: 'POST',
+            data: {
+                channel_name: channel_name,
+                socket_id: push.connection.socket_id,
             },
-            error: function (e) {
-                throw Error(e);
-            }
+            success: function ({data}) {
+                data.channel = channel_name;
+                push.connection.send(
+                    JSON.stringify({event: 'pusher:subscribe', data: data})
+                );
+            },
+            fail: function (e) {
+                console.log(e);
+            },
         });
     };
     channel.processSubscribe();
@@ -190,7 +205,7 @@ function createPresenceChannel(channel_name, push) {
     return createPrivateChannel(channel_name, push);
 }
 
-uni.onNetworkStatusChange(function (res) {
+wx.onNetworkStatusChange(function (res) {
     if (res.isConnected) {
         for (var i in Push.instances) {
             var con = Push.instances[i].connection;
@@ -228,8 +243,83 @@ Connection.prototype.updateNetworkState = function (state) {
 
 Connection.prototype.connect = function () {
     this.doNotConnect = 0;
+    if (
+        this.networkState == 'connecting' ||
+        this.networkState == 'established'
+    ) {
+        console.log(
+            'networkState is ' + this.networkState + ' and do not need connect'
+        );
+        return;
+    }
+    if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = 0;
+    }
+
+    this.closeAndClean();
+
+    var options = this.options;
+    var _this = this;
+    _this.updateNetworkState('connecting');
+    var cb = function () {
+        wx.onSocketOpen(function (res) {
+            _this.reconnectInterval = 1;
+            if (_this.doNotConnect) {
+                _this.updateNetworkState('closing');
+                wx.closeSocket();
+                return;
+            }
+            _this.updateNetworkState('established');
+            if (options.onOpen) {
+                options.onOpen(res);
+            }
+        });
+
+        if (options.onMessage) {
+            wx.onSocketMessage(options.onMessage);
+        }
+
+        wx.onSocketClose(function (res) {
+            _this.updateNetworkState('disconnected');
+            if (!_this.doNotConnect) {
+                _this.waitReconnect();
+            }
+            if (options.onClose) {
+                options.onClose(res);
+            }
+        });
+
+        wx.onSocketError(function (res) {
+            _this.close();
+            if (!_this.doNotConnect) {
+                _this.waitReconnect();
+            }
+            if (options.onError) {
+                options.onError(res);
+            }
+        });
+    };
+    wx.connectSocket({
+        url: options.url,
+        fail: function (res) {
+            console.log('wx.connectSocket fail');
+            console.log(res);
+            _this.updateNetworkState('disconnected');
+            _this.waitReconnect();
+        },
+        success: function () {
+        },
+    });
+    cb();
+};
+
+Connection.prototype.connect = function () {
+    this.doNotConnect = 0;
     if (this.state === 'connected') {
-        console.log('networkState is "' + this.state + '" and do not need connect');
+        console.log(
+            'networkState is "' + this.state + '" and do not need connect'
+        );
         return;
     }
     if (this.reconnectTimer) {
@@ -245,11 +335,11 @@ Connection.prototype.connect = function () {
 
     var _this = this;
     var cb = function () {
-        uni.onSocketOpen(function (res) {
+        wx.onSocketOpen(function (res) {
             _this.reconnectInterval = 1;
             if (_this.doNotConnect) {
                 _this.updateNetworkState('disconnected');
-                uni.closeSocket();
+                wx.closeSocket();
                 return;
             }
             if (options.onOpen) {
@@ -258,10 +348,10 @@ Connection.prototype.connect = function () {
         });
 
         if (options.onMessage) {
-            uni.onSocketMessage(options.onMessage);
+            wx.onSocketMessage(options.onMessage);
         }
 
-        uni.onSocketClose(function (res) {
+        wx.onSocketClose(function (res) {
             _this.updateNetworkState('disconnected');
             if (!_this.doNotConnect) {
                 _this.waitReconnect();
@@ -271,7 +361,7 @@ Connection.prototype.connect = function () {
             }
         });
 
-        uni.onSocketError(function (res) {
+        wx.onSocketError(function (res) {
             _this.close();
             if (!_this.doNotConnect) {
                 _this.waitReconnect();
@@ -281,24 +371,23 @@ Connection.prototype.connect = function () {
             }
         });
     };
-    uni.connectSocket({
+    wx.connectSocket({
         url: options.url + '/app/' + options.app_key,
         fail: function (res) {
-            console.log('uni.connectSocket fail');
+            console.log('wx.connectSocket fail');
             console.log(res);
             _this.updateNetworkState('disconnected');
             _this.waitReconnect();
         },
         success: function () {
-
-        }
+        },
     });
     cb();
-}
+};
 
 Connection.prototype.closeAndClean = function () {
     if (this.state === 'connected') {
-        uni.closeSocket();
+        wx.closeSocket();
     }
     this.updateNetworkState('disconnected');
 };
@@ -324,43 +413,51 @@ Connection.prototype.waitReconnect = function () {
         }
         // 有网络的状态下，重连间隔最大2秒
         if (this.reconnectInterval > 2000) {
-            uni.getNetworkType({
+            wx.getNetworkType({
                 success: function (res) {
                     if (res.networkType != 'none') {
                         _this.reconnectInterval = 1000;
                     }
-                }
+                },
             });
         }
     }
-}
+};
 
 Connection.prototype.send = function (data) {
     if (this.state !== 'connected') {
-        console.trace('networkState is "' + this.state + '", can not send ' + data);
+        console.trace(
+            'networkState is "' + this.state + '", can not send ' + data
+        );
         return;
     }
-    uni.sendSocketMessage({
-        data: data
+    wx.sendSocketMessage({
+        data: data,
     });
-}
+};
 
 Connection.prototype.close = function () {
     this.updateNetworkState('disconnected');
-    uni.closeSocket();
-}
-
-var __extends = (this && this.__extends) || function (d, b) {
-    for (var p in b) if (b.hasOwnProperty(p)) {
-        d[p] = b[p];
-    }
-
-    function __() {
-        this.constructor = d;
-    }
-
-    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    wx.closeSocket();
 };
+
+var __extends =
+    (this && this.__extends) ||
+    function (d, b) {
+        for (var p in b)
+            if (b.hasOwnProperty(p)) {
+                d[p] = b[p];
+            }
+
+        function __() {
+            this.constructor = d;
+        }
+
+        d.prototype =
+            b === null
+                ? Object.create(b)
+                : ((__.prototype = b.prototype), new __());
+    };
 
 function Channel(connection, channel_name) {
     this.subscribed = false;
@@ -399,7 +496,13 @@ Channel.prototype.trigger = function (event, data) {
     }
     var _this = this;
     this.queue.push(function () {
-        _this.connection.send(JSON.stringify({event: event, data: data, channel: _this.channelName}));
+        _this.connection.send(
+            JSON.stringify({
+                event: event,
+                data: data,
+                channel: _this.channelName,
+            })
+        );
     });
     this.processQueue();
 };
@@ -416,9 +519,15 @@ var Collections = (function () {
         for (var i = 0; i < sources.length; i++) {
             var extensions = sources[i];
             for (var property in extensions) {
-                if (extensions[property] && extensions[property].constructor &&
-                    extensions[property].constructor === Object) {
-                    target[property] = extend(target[property] || {}, extensions[property]);
+                if (
+                    extensions[property] &&
+                    extensions[property].constructor &&
+                    extensions[property].constructor === Object
+                ) {
+                    target[property] = extend(
+                        target[property] || {},
+                        extensions[property]
+                    );
                 } else {
                     target[property] = extensions[property];
                 }
@@ -430,15 +539,15 @@ var Collections = (function () {
     exports.extend = extend;
 
     function stringify() {
-        var m = ["Push"];
+        var m = ['Push'];
         for (var i = 0; i < arguments.length; i++) {
-            if (typeof arguments[i] === "string") {
+            if (typeof arguments[i] === 'string') {
                 m.push(arguments[i]);
             } else {
                 m.push(safeJSONStringify(arguments[i]));
             }
         }
-        return m.join(" : ");
+        return m.join(' : ');
     }
 
     exports.stringify = stringify;
@@ -493,7 +602,7 @@ var Collections = (function () {
 
     function apply(array, f, context) {
         for (var i = 0; i < array.length; i++) {
-            f.call(context || (window), array[i], i, array);
+            f.call(context || window, array[i], i, array);
         }
     }
 
@@ -520,9 +629,11 @@ var Collections = (function () {
     exports.mapObject = mapObject;
 
     function filter(array, test) {
-        test = test || function (value) {
-            return !!value;
-        };
+        test =
+            test ||
+            function (value) {
+                return !!value;
+            };
         var result = [];
         for (var i = 0; i < array.length; i++) {
             if (test(array[i], i, array, result)) {
@@ -580,10 +691,10 @@ var Collections = (function () {
 
     function encodeParamsObject(data) {
         return mapObject(data, function (value) {
-            if (typeof value === "object") {
+            if (typeof value === 'object') {
                 value = safeJSONStringify(value);
             }
-            return encodeURIComponent(base64_1["default"](value.toString()));
+            return encodeURIComponent(base64_1['default'](value.toString()));
         });
     }
 
@@ -593,13 +704,17 @@ var Collections = (function () {
         var params = filterObject(data, function (value) {
             return value !== undefined;
         });
-        return map(flatten(encodeParamsObject(params)), util_1["default"].method("join", "=")).join("&");
+        return map(
+            flatten(encodeParamsObject(params)),
+            util_1['default'].method('join', '=')
+        ).join('&');
     }
 
     exports.buildQueryString = buildQueryString;
 
     function decycleObject(object) {
-        var objects = [], paths = [];
+        var objects = [],
+            paths = [];
         return (function derez(value, path) {
             var i, name, nu;
             switch (typeof value) {
@@ -614,7 +729,10 @@ var Collections = (function () {
                     }
                     objects.push(value);
                     paths.push(path);
-                    if (Object.prototype.toString.apply(value) === '[object Array]') {
+                    if (
+                        Object.prototype.toString.apply(value) ===
+                        '[object Array]'
+                    ) {
                         nu = [];
                         for (i = 0; i < value.length; i += 1) {
                             nu[i] = derez(value[i], path + '[' + i + ']');
@@ -622,8 +740,16 @@ var Collections = (function () {
                     } else {
                         nu = {};
                         for (name in value) {
-                            if (Object.prototype.hasOwnProperty.call(value, name)) {
-                                nu[name] = derez(value[name], path + '[' + JSON.stringify(name) + ']');
+                            if (
+                                Object.prototype.hasOwnProperty.call(
+                                    value,
+                                    name
+                                )
+                            ) {
+                                nu[name] = derez(
+                                    value[name],
+                                    path + '[' + JSON.stringify(name) + ']'
+                                );
                             }
                         }
                     }
@@ -633,7 +759,7 @@ var Collections = (function () {
                 case 'boolean':
                     return value;
             }
-        }(object, '$'));
+        })(object, '$');
     }
 
     exports.decycleObject = decycleObject;
@@ -677,7 +803,7 @@ var Dispatcher = (function () {
         var callbacks = this.callbacks.get(eventName);
         if (callbacks && callbacks.length > 0) {
             for (i = 0; i < callbacks.length; i++) {
-                callbacks[i].fn.call(callbacks[i].context || (window), data);
+                callbacks[i].fn.call(callbacks[i].context || window, data);
             }
         } else if (this.failThrough) {
             this.failThrough(eventName, data);
@@ -685,7 +811,7 @@ var Dispatcher = (function () {
         return this;
     };
     return Dispatcher;
-}());
+})();
 
 var CallbackRegistry = (function () {
     function CallbackRegistry() {
@@ -697,10 +823,11 @@ var CallbackRegistry = (function () {
     };
     CallbackRegistry.prototype.add = function (name, callback, context) {
         var prefixedEventName = prefix(name);
-        this._callbacks[prefixedEventName] = this._callbacks[prefixedEventName] || [];
+        this._callbacks[prefixedEventName] =
+            this._callbacks[prefixedEventName] || [];
         this._callbacks[prefixedEventName].push({
             fn: callback,
-            context: context
+            context: context,
         });
     };
     CallbackRegistry.prototype.remove = function (name, callback, context) {
@@ -715,69 +842,44 @@ var CallbackRegistry = (function () {
             this.removeAllCallbacks(names);
         }
     };
-    CallbackRegistry.prototype.removeCallback = function (names, callback, context) {
-        Collections.apply(names, function (name) {
-            this._callbacks[name] = Collections.filter(this._callbacks[name] || [], function (oning) {
-                return (callback && callback !== oning.fn) ||
-                    (context && context !== oning.context);
-            });
-            if (this._callbacks[name].length === 0) {
-                delete this._callbacks[name];
-            }
-        }, this);
+    CallbackRegistry.prototype.removeCallback = function (
+        names,
+        callback,
+        context
+    ) {
+        Collections.apply(
+            names,
+            function (name) {
+                this._callbacks[name] = Collections.filter(
+                    this._callbacks[name] || [],
+                    function (oning) {
+                        return (
+                            (callback && callback !== oning.fn) ||
+                            (context && context !== oning.context)
+                        );
+                    }
+                );
+                if (this._callbacks[name].length === 0) {
+                    delete this._callbacks[name];
+                }
+            },
+            this
+        );
     };
     CallbackRegistry.prototype.removeAllCallbacks = function (names) {
-        Collections.apply(names, function (name) {
-            delete this._callbacks[name];
-        }, this);
+        Collections.apply(
+            names,
+            function (name) {
+                delete this._callbacks[name];
+            },
+            this
+        );
     };
     return CallbackRegistry;
-}());
+})();
 
 function prefix(name) {
-    return "_" + name;
+    return '_' + name;
 }
 
-function __ajax(options) {
-    options = options || {};
-    options.type = (options.type || 'GET').toUpperCase();
-    options.dataType = options.dataType || 'json';
-    var params = formatParams(options.data);
-
-    var xhr;
-    if (window.XMLHttpRequest) {
-        xhr = new XMLHttpRequest();
-    } else {
-        xhr = ActiveXObject('Microsoft.XMLHTTP');
-    }
-
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-            var status = xhr.status;
-            if (status >= 200 && status < 300) {
-                options.success && options.success(xhr.responseText, xhr.responseXML);
-            } else {
-                options.error && options.error(status);
-            }
-        }
-    }
-
-    if (options.type === 'GET') {
-        xhr.open('GET', options.url + '?' + params, true);
-        xhr.send(null);
-    } else if (options.type === 'POST') {
-        xhr.open('POST', options.url, true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.send(params);
-    }
-}
-
-function formatParams(data) {
-    var arr = [];
-    for (var name in data) {
-        arr.push(encodeURIComponent(name) + '=' + encodeURIComponent(data[name]));
-    }
-    return arr.join('&');
-}
-
-export default Push
+export default Push;
