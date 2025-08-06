@@ -56,12 +56,8 @@ class UniqidChannel
     public function valid(): bool
     {
         $request = request();
-        if (null === $request) {
-            return false;
-        }
-        $session = $request->session();
-        if ($session->has(static::SESSION_KEY)) {
-            return $session->get(static::SESSION_KEY) === $this->channel_name;
+        if ($request && $request->session()->has(static::SESSION_KEY)) {
+            return $request->session()->get(static::SESSION_KEY) === $this->channel_name;
         }
         return (bool)Redis::exists($this->getCacheKey());
     }
